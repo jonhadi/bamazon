@@ -1,6 +1,5 @@
 var mysql = require("mysql");
 var inquirer = require("inquirer");
-var notLoggedIn = true;
   
 var connection = mysql.createConnection({
   host: "localhost",
@@ -109,18 +108,22 @@ function logIn() {
     },
   ])
   .then(function(accountRes) {
-    var promise = new Promise(function(resolve, reject) {
-      resolve(logCheck(accountRes.username, accountRes.password));
-    });
-    promise.then(function() {
-      console.log(notLoggedIn);
-      if (notLoggedIn) {
-        console.log("Incorrect Username or Password");
-        logIn();
-      }
-    });
+    logSync(accountRes.username, accountRes.password)
   }) 
 }
+
+async function logSync(username, password) {
+  const notLoggedIn = await logCheck(username, password);
+
+  if (notLoggedIn) {
+    console.log("Incorrect Username or Password");
+    logIn();
+  } else {
+    console.log("Successfully logged in");
+    AskItemPrompts(username);
+  }
+}
+
 
 function logCheck(username, password) {
   connection.query("SELECT * FROM users", function(err, res) {
@@ -128,13 +131,11 @@ function logCheck(username, password) {
     for (var i = 0; i < res.length; i++) {
       if (username === res[i].username) { 
         if (password === res[i].password) {
-          console.log("Successfully logged in");
-          notLoggedIn = false;
-          console.log(notLoggedIn);
-          AskItemPrompts(username);
+          return false;
         } 
       } 
     } 
+    return true;
   });
 }
   
