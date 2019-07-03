@@ -12,8 +12,8 @@ var connection = mysql.createConnection({
   user: "root",
 
   // Your password
-  password: "qwQW12!@",
-  database: "greatbayDB"
+  password: "password",
+  database: "BamazonDB"
 });
 
 connection.connect(function(err) {
@@ -74,7 +74,7 @@ function createAccount() {
         }
       }
       if (newUser.password === newUser.passwordCheck) {
-        var query = connection.query("INSERT INTO users SET ?",
+        connection.query("INSERT INTO users SET ?",
         {
           username: newUser.username,
           password: newUser.password
@@ -113,6 +113,7 @@ function logIn() {
       resolve(logCheck(accountRes.username, accountRes.password));
     });
     promise.then(function() {
+      console.log(notLoggedIn);
       if (notLoggedIn) {
         console.log("Incorrect Username or Password");
         logIn();
@@ -129,6 +130,7 @@ function logCheck(username, password) {
         if (password === res[i].password) {
           console.log("Successfully logged in");
           notLoggedIn = false;
+          console.log(notLoggedIn);
           AskItemPrompts(username);
         } 
       } 
@@ -142,15 +144,15 @@ function AskItemPrompts(user) {
         {
           type: "list",
           message: "What would you like to do?",
-          choices: ["POST AN ITEM", "BID ON AN ITEM", "EXIT PROGRAM"],
+          choices: ["POST AN ITEM", "BUY ITEMS", "EXIT PROGRAM"],
           name: "option"
         },
     ])
     .then(function(inquirerResponse) {
         if (inquirerResponse.option === "POST AN ITEM") {
-          PostingItem(user);
-        } else if (inquirerResponse.option === "BID ON AN ITEM") {
-          BiddingItem(user);
+          postingItem(user);
+        } else if (inquirerResponse.option === "BUY ITEMS") {
+          buyItem(user);
         }
         else {
            connection.end();
@@ -158,7 +160,7 @@ function AskItemPrompts(user) {
     });
   }
 
-function PostingItem(user) {
+function postingItem(user) {
   inquirer
   .prompt([
       {
@@ -167,9 +169,20 @@ function PostingItem(user) {
       name: "itemName"
       },
       {
+      type: "list",
+      message: "What kind of item is it?",
+      choices: ["groceries", "electronics", "toys"],
+      name: "department"
+      },
+      {
       type: "number",
-      message: "Enter the price (starting bid) of your item ($):",
+      message: "Enter the price of your item ($):",
       name: "itemPrice"
+      },
+      {
+      type: "number",
+      message: "Enter How many items you're selling:",
+      name: "itemStock"
       },
   ])
   .then(function(postingResponse) {
@@ -179,13 +192,13 @@ function PostingItem(user) {
         {
           name: postingResponse.itemName,
           seller: user,
-          current_bid: postingResponse.itemPrice,
-          current_bidder: user,
-          time_posted: new Date()
+          price: postingResponse.itemPrice,
+          stock: postingResponse.itemStock,
+          department: postingResponse.department
         },
         function(err, res) {
           if (err) throw err;
-          console.log(res.affectedRows + " product inserted!\n");
+          console.log(res.affectedRows + " product posted!\n");
           AskItemPrompts(user);
         }
       );
@@ -194,7 +207,7 @@ function PostingItem(user) {
   });
 }
 
-function BiddingItem(user) {
+function buyItem(user) {
   console.log("Selecting all items...\n");
   connection.query("SELECT * FROM items", function(err, res) {
     if (err) throw err;
@@ -202,7 +215,7 @@ function BiddingItem(user) {
     //console.log(res);
     var itemidArray = [];
     for (let i = 0; i < res.length; i++) {
-      itemidArray.push(res[i].id + ": " + res[i].name + " - $" + res[i].current_bid);
+      itemidArray.push(res[i].id + ": " + res[i].name + " - $" + res[i].price + " - Stock: " + res[i].stock);
     }
     inquirer
     .prompt([
@@ -221,36 +234,35 @@ function BiddingItem(user) {
         if (err) throw err;
         // Log all results of the SELECT statement
         console.log("item name: " + res[0].name);
-        console.log("current bid: $" + res[0].current_bid);
+        console.log("current bid: $" + res[0].price);
+        console.log("stock: $" + res[0].stock);
         inquirer
         .prompt([
           {
-          type: "input",
-          message: "Input your bid: ",
-          name: "newBid",
+          type: "number",
+          message: "How many are you buying? ",
+          name: "productsOrdered",
           },
         ])
-        .then(function(bidderRes) {       
-          if (bidderRes.newBid > res[0].current_bid) {
-            connection.query("UPDATE items SET ?,? WHERE ?",
+        .then(function(customer) {       
+          if (customer.productsOrdered <= res[0].stock) {
+            var newStock = res[0].stock - customer.productsOrdered;
+            connection.query("UPDATE items SET ? WHERE ?",
             [
               {
-                current_bid: bidderRes.newBid
+                stock: newStock,
               },
               {
-                current_bidder: user
-              },
-              {
-                id: idCoice
+                id: res[0].id,
               }
             ],
             function(err, res) {
               if (err) throw err;
-              console.log("Bid updated!\n");
+              console.log("Stock updated!\n");
               AskItemPrompts(user);
             }
             );
           } else {
-            console.log("Your bid is lower than the current bid!");
+            console.log("There is not of that item avaliable");
             AskItemPrompts(user);
 }})})});});}
