@@ -114,29 +114,34 @@ function logIn() {
 
 async function logSync(username, password) {
   const notLoggedIn = await logCheck(username, password);
+  //console.log(notLoggedIn);
 
-  if (notLoggedIn) {
+  if(notLoggedIn === true) {
     console.log("Incorrect Username or Password");
     logIn();
+  } else if(notLoggedIn === false) {
+    console.log("Successfully logged in");
+    AskItemPrompts(username);
   } else {
+    //console.log("error");
     console.log("Successfully logged in");
     AskItemPrompts(username);
   }
 }
 
-
 function logCheck(username, password) {
-  connection.query("SELECT * FROM users", function(err, res) {
-    if (err) throw err;
-    for (var i = 0; i < res.length; i++) {
-      if (username === res[i].username) { 
-        if (password === res[i].password) {
-          return false;
-        } 
-      } 
-    } 
-    return true;
+  var sql = "SELECT * FROM users where username = ?"
+  var sql = mysql.format(sql, username);
+  var pass;
+  connection.query(sql, (err, result) =>{ 
+    console.log(result);
+    if(result.password === password) {
+      pass = false;
+    } else {
+      pass = true;
+    }
   });
+  return pass;
 }
   
 function AskItemPrompts(user) {
@@ -235,8 +240,8 @@ function buyItem(user) {
         if (err) throw err;
         // Log all results of the SELECT statement
         console.log("item name: " + res[0].name);
-        console.log("current bid: $" + res[0].price);
-        console.log("stock: $" + res[0].stock);
+        console.log("Price: $" + res[0].price);
+        console.log("stock: " + res[0].stock);
         inquirer
         .prompt([
           {
@@ -247,22 +252,37 @@ function buyItem(user) {
         ])
         .then(function(customer) {       
           if (customer.productsOrdered <= res[0].stock) {
-            var newStock = res[0].stock - customer.productsOrdered;
-            connection.query("UPDATE items SET ? WHERE ?",
-            [
+            var total = customer.productsOrdered * res[0].price;
+            inquirer
+            .prompt([
               {
-                stock: newStock,
-              },
-              {
-                id: res[0].id,
+                type: "list",
+                message: "Your total is: $ "+ total,
+                choices: ["YES", "NO"],
+                name: "confirmation"
               }
-            ],
-            function(err, res) {
-              if (err) throw err;
-              console.log("Stock updated!\n");
-              AskItemPrompts(user);
-            }
-            );
+            ]).then(function(response) {
+              if (response.confirmation === "YES") {
+                var newStock = res[0].stock - customer.productsOrdered;
+                connection.query("UPDATE items SET ? WHERE ?",
+                [
+                  {
+                    stock: newStock,
+                  },
+                  {
+                    id: res[0].id,
+                  }
+                ],
+                function(err, res) {
+                  if (err) throw err;
+                  console.log("Stock updated!\n");
+                  AskItemPrompts(user);
+                });
+              } else {
+                buyItem(user);
+              }
+            })
+            
           } else {
             console.log("There is not of that item avaliable");
             AskItemPrompts(user);
